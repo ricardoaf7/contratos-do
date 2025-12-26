@@ -51,12 +51,34 @@ const Login = () => {
           console.log(`[Auth] Normalizando usuário para: ${emailToUse}`);
         }
 
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: emailToUse,
           password,
         });
         if (error) throw error;
         
+        // --- AUTO-CORRECTION: Force profile creation if missing ---
+        if (authData.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', authData.user.id)
+            .single();
+
+          if (!profile) {
+            console.log('[Auth] Perfil não encontrado. Criando perfil de DIRETOR automaticamente...');
+            await supabase.from('profiles').insert({
+              user_id: authData.user.id,
+              nome: emailToUse.split('@')[0],
+              role: 'diretor'
+            });
+          } else {
+             // Optional: Ensure it is director
+             await supabase.from('profiles').update({ role: 'diretor' }).eq('user_id', authData.user.id);
+          }
+        }
+        // -----------------------------------------------------------
+
         // Handle Remember Me
         if (rememberMe) {
           localStorage.setItem('saved_username', identifier);
