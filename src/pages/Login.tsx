@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Loader2, User } from 'lucide-react';
+import { Lock, Mail, Loader2, User, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const [identifier, setIdentifier] = useState('');
@@ -43,42 +43,48 @@ const Login = () => {
         if (error) throw error;
         alert('Cadastro realizado! Verifique seu e-mail para confirmar.');
       } else {
-        // Login logic - assume domain if not provided
+        // Login logic
         let emailToUse = identifier;
+        
+        // Se não for e-mail (não tem @), tenta buscar pelo username
         if (!identifier.includes('@')) {
-          emailToUse = `${identifier}@contratos.gov`;
-          // Tracking normalization
-          console.log(`[Auth] Normalizando usuário para: ${emailToUse}`);
+          console.log(`[Auth] Buscando e-mail para o usuário: ${identifier}`);
+          
+          // Tenta buscar o e-mail na tabela profiles usando o username
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('username', identifier.toLowerCase())
+            .single();
+
+          if (profileData) {
+             // Se achou o perfil, infelizmente não temos o e-mail na tabela profiles (por segurança/design)
+             // A menos que adicionemos o email na tabela profiles também.
+             // Como não temos, vamos manter a estratégia de sufixo como fallback, 
+             // MAS se você quiser evoluir, o ideal seria armazenar o email no profile ou usar uma Edge Function.
+             
+             // Estratégia Híbrida:
+             // 1. Tenta sufixo padrão (legado/rápido)
+             emailToUse = `${identifier}@contratos.gov`;
+          } else {
+             // Se não achou username, assume que é o sufixo padrão mesmo assim para tentar
+             emailToUse = `${identifier}@contratos.gov`;
+          }
         }
+
+        console.log(`[Auth] Tentando login com: ${emailToUse}`);
 
         const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: emailToUse,
           password,
         });
-        if (error) throw error;
-        
-        // --- AUTO-CORRECTION: Force profile creation if missing ---
-        if (authData.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('user_id', authData.user.id)
-            .single();
 
-          if (!profile) {
-            console.log('[Auth] Perfil não encontrado. Criando perfil de DIRETOR automaticamente...');
-            await supabase.from('profiles').insert({
-              user_id: authData.user.id,
-              nome: emailToUse.split('@')[0],
-              role: 'diretor'
-            });
-          } else {
-             // Optional: Ensure it is director
-             await supabase.from('profiles').update({ role: 'diretor' }).eq('user_id', authData.user.id);
-          }
+        if (error) {
+           // Se falhar com @contratos.gov, e o usuário não digitou @, pode ser que o email seja outro.
+           // Nesse caso, só podemos dar erro mesmo, pois não temos como "adivinhar" o email de um username sem consultar uma tabela de mapeamento.
+           throw error;
         }
-        // -----------------------------------------------------------
-
+        
         // Handle Remember Me
         if (rememberMe) {
           localStorage.setItem('saved_username', identifier);
@@ -94,6 +100,8 @@ const Login = () => {
       let friendlyError = err.message;
       if (err.message.includes('Invalid login credentials')) {
         friendlyError = 'Usuário ou senha incorretos. Verifique suas credenciais.';
+      } else if (err.message.includes('Email not confirmed')) {
+        friendlyError = 'E-mail não confirmado. Verifique sua caixa de entrada.';
       }
       setError(friendlyError);
     } finally {
@@ -107,9 +115,9 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transition-all duration-300">
-        <div className="bg-blue-900 p-8 text-center">
-          <div className="h-16 w-16 bg-blue-800 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
-            <Lock className="h-8 w-8 text-blue-200" />
+        <div className="bg-blue-900 p-8 text-center relative">
+          <div className="h-20 w-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <img src="/logo.png" alt="Logo" className="h-14 w-14 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white">GestãoGov</h1>
           <p className="text-blue-200 mt-2">Acesso ao Sistema de Contratos</p>
@@ -119,7 +127,7 @@ const Login = () => {
           <form onSubmit={handleAuth} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {isSignUp ? 'E-mail Profissional' : 'Usuário'}
+                {isSignUp ? 'E-mail Profissional' : 'Usuário ou E-mail'}
               </label>
               <div className="relative group">
                 {isSignUp ? (
@@ -136,7 +144,7 @@ const Login = () => {
                       : 'border-gray-200 focus:ring-blue-500 focus:border-transparent'
                     }
                   `}
-                  placeholder={isSignUp ? "seu@email.gov.br" : "Digite seu usuário"}
+                  placeholder={isSignUp ? "seu@email.gov.br" : "Digite seu usuário ou e-mail"}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   onBlur={() => setTouched({...touched, identifier: true})}
@@ -227,27 +235,5 @@ const Login = () => {
     </div>
   );
 };
-
-// Helper icon
-function AlertCircle(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  );
-}
 
 export default Login;

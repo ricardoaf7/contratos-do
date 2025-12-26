@@ -32,6 +32,9 @@ export interface Profile {
   id: string;
   user_id: string;
   nome: string;
+  username?: string;
   role: 'diretor' | 'gerente' | 'fiscal';
   manager_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
