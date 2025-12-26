@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, DollarSign, PieChart, Menu, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, DollarSign, PieChart, Menu, Users, LogOut, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface LayoutProps {
@@ -91,6 +91,18 @@ const Layout = ({ children }: LayoutProps) => {
             );
           })}
         </nav>
+
+        {userRole === 'diretor' && (
+          <div className="px-4 mt-6">
+            <Link
+              to="/usuarios"
+              className="flex items-center justify-center w-full px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg shadow-lg transition-all transform hover:scale-105 font-bold"
+            >
+              <UserPlus className="h-5 w-5 mr-2" />
+              Criar Equipe
+            </Link>
+          </div>
+        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-blue-800">
           <div className="flex items-center justify-between">
