@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, AlertCircle, Eye, Edit, Trash2, Database } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Filter, Eye, Edit } from 'lucide-react';
 import { Contrato } from '../types';
 import { supabase } from '../lib/supabase';
 import ContractForm from '../components/ContractForm';
