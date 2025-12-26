@@ -51,7 +51,7 @@ const Login = () => {
           console.log(`[Auth] Buscando e-mail para o usuário: ${identifier}`);
           
           // Tenta buscar o e-mail na tabela profiles usando o username
-          const { data: profileData, error: profileError } = await supabase
+          const { data: profileData } = await supabase
             .from('profiles')
             .select('user_id')
             .eq('username', identifier.toLowerCase())

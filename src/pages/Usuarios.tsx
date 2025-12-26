@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Shield, UserCog, Search, UserPlus, X, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { Shield, Search, UserPlus, X, Loader2, Edit2 } from 'lucide-react';
 import { Profile } from '../types';
 
 const Usuarios = () => {
