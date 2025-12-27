@@ -128,34 +128,36 @@ const Usuarios = () => {
         setProfiles(profiles.map(p => p.id === selectedUser.id ? { ...p, ...updates } : p));
         alert('Usuário atualizado com sucesso!');
       } else {
-        // Create Logic (Simulation for MVP without backend functions)
-        // Check if username exists locally first
-        if (profiles.some(p => p.username === formData.username)) {
-          throw new Error('Nome de usuário já existe.');
+        // Lógica de Criação via Edge Function
+        
+        // 1. Invocar a função backend
+        const { data, error } = await supabase.functions.invoke('create-user', {
+          body: {
+            email: formData.email,
+            password: formData.password,
+            nome: formData.nome,
+            username: formData.username,
+            role: formData.role,
+            manager_id: formData.manager_id || null
+          }
+        });
+
+        if (error) {
+          // Erro de invocação da função (ex: rede, 500)
+          console.error('Function error:', error);
+          throw new Error('Erro ao conectar com o servidor. Tente novamente.');
         }
 
-        alert('Nota: Para criar usuários reais sem deslogar o admin, seria necessário uma Edge Function (Backend). \n\nNesta demonstração, simularemos a criação do perfil visualmente e salvaremos no banco de dados.');
-        
-        const fakeId = crypto.randomUUID();
-        const newProfile: Profile = {
-          id: fakeId,
-          user_id: fakeId,
-          nome: formData.nome,
-          username: formData.username,
-          role: formData.role,
-          manager_id: formData.manager_id || undefined,
-          created_at: new Date().toISOString()
-        };
+        if (data && data.error) {
+           // Erro retornado pela nossa lógica (ex: email já existe)
+           throw new Error(data.error);
+        }
 
-        // Insert into profiles to persist metadata (Auth user won't work from client without logout)
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert(newProfile);
-
-        if (insertError) throw insertError;
-
-        setProfiles([...profiles, newProfile]);
         alert('Usuário criado com sucesso!');
+        
+        // Atualiza a lista localmente para refletir a mudança sem reload
+        // Nota: Em um cenário ideal, usaríamos o objeto retornado 'data.user', mas para simplificar:
+        fetchProfiles(); 
       }
       setIsModalOpen(false);
     } catch (err: any) {
