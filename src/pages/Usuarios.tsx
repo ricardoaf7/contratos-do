@@ -365,6 +365,26 @@ const Usuarios = () => {
                 const setor = setores.find(s => s.id === profile.setor_id);
                 const gerencia = gerencias.find(g => g.id === profile.gerencia_id);
                 
+                const formatGerencia = (nome: string | undefined) => {
+                  if (!nome) return '-';
+                  if (nome.toLowerCase().includes('diretoria')) return nome;
+                  return `Gerência de ${nome}`;
+                };
+
+                const getMainDisplay = () => {
+                  if (profile.role === 'gerente') {
+                    return formatGerencia(gerencia?.nome);
+                  }
+                  return setor?.nome || '-';
+                };
+
+                const getSubDisplay = () => {
+                  if (profile.role === 'gerente') {
+                    return '-';
+                  }
+                  return formatGerencia(gerencia?.nome);
+                };
+                
                 return (
                   <tr key={profile.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
@@ -382,8 +402,8 @@ const Usuarios = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-gray-900 font-medium">{setor?.nome || '-'}</div>
-                      <div className="text-xs text-gray-500">{gerencia?.nome || '-'}</div>
+                      <div className="text-gray-900 font-medium">{getMainDisplay()}</div>
+                      <div className="text-xs text-gray-500">{getSubDisplay()}</div>
                     </td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2">
                       <button 
