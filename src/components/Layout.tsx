@@ -66,8 +66,8 @@ const Layout = ({ children }: LayoutProps) => {
         `}
       >
         <div className="h-16 flex items-center px-6 border-b border-blue-800 gap-3">
-          <img src="/logo.png" alt="GestãoGov Logo" className="h-8 w-8 object-contain bg-white rounded p-0.5" />
-          <span className="text-xl font-bold">GestãoGov</span>
+          <img src="/logo.png" alt="Gestão de Contratos" className="h-8 w-8 object-contain" />
+          <span className="text-xl font-bold">Gestão de Contratos</span>
         </div>
 
         <nav className="mt-6 px-4 space-y-2">

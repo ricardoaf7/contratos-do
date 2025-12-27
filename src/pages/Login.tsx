@@ -119,7 +119,7 @@ const Login = () => {
           <div className="h-20 w-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <img src="/logo.png" alt="Logo" className="h-14 w-14 object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-white">GestãoGov</h1>
+          <h1 className="text-2xl font-bold text-white">Gestão de Contratos</h1>
           <p className="text-blue-200 mt-2">Acesso ao Sistema de Contratos</p>
         </div>
 
