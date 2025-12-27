@@ -34,7 +34,22 @@ export interface Profile {
   nome: string;
   username?: string;
   role: 'diretor' | 'gerente' | 'fiscal';
-  manager_id?: string;
+  manager_id?: string; // Mantido para compatibilidade, mas a hierarquia principal será via gerencia_id/setor_id
+  gerencia_id?: string;
+  setor_id?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface Gerencia {
+  id: string;
+  nome: string;
+  created_at?: string;
+}
+
+export interface Setor {
+  id: string;
+  nome: string;
+  gerencia_id: string;
+  created_at?: string;
 }

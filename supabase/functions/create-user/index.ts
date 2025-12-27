@@ -20,7 +20,7 @@ serve(async (req) => {
     )
 
     // Recebe dados do frontend
-    const { email, password, nome, username, role, manager_id } = await req.json()
+    const { email, password, nome, username, role, manager_id, gerencia_id, setor_id } = await req.json()
 
     // Validação básica
     if (!email || !password || !nome || !username || !role) {
@@ -35,7 +35,9 @@ serve(async (req) => {
       user_metadata: {
         nome,
         username,
-        role
+        role,
+        gerencia_id,
+        setor_id
       }
     })
 
@@ -51,7 +53,9 @@ serve(async (req) => {
         nome,
         username,
         role,
-        manager_id: manager_id || null,
+        manager_id: manager_id || null, // Mantido para compatibilidade
+        gerencia_id: gerencia_id || null,
+        setor_id: setor_id || null,
         created_at: new Date().toISOString()
       })
 
