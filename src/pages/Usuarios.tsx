@@ -198,6 +198,7 @@ const Usuarios = () => {
         // Update Logic
         const updates: any = {
           nome: formData.nome,
+          email: formData.email,
           username: formData.username,
           role: formData.role,
           gerencia_id: formData.gerencia_id || null,

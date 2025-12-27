@@ -53,21 +53,15 @@ const Login = () => {
           // Tenta buscar o e-mail na tabela profiles usando o username
           const { data: profileData } = await supabase
             .from('profiles')
-            .select('user_id')
+            .select('email')
             .eq('username', identifier.toLowerCase())
             .single();
 
-          if (profileData) {
-             // Se achou o perfil, infelizmente não temos o e-mail na tabela profiles (por segurança/design)
-             // A menos que adicionemos o email na tabela profiles também.
-             // Como não temos, vamos manter a estratégia de sufixo como fallback, 
-             // MAS se você quiser evoluir, o ideal seria armazenar o email no profile ou usar uma Edge Function.
-             
-             // Estratégia Híbrida:
-             // 1. Tenta sufixo padrão (legado/rápido)
-             emailToUse = `${identifier}@contratos.gov`;
+          if (profileData && profileData.email) {
+             // Se encontrou o e-mail no perfil, usa ele
+             emailToUse = profileData.email;
           } else {
-             // Se não achou username, assume que é o sufixo padrão mesmo assim para tentar
+             // Fallback: se não achou ou não tem email, tenta sufixo padrão
              emailToUse = `${identifier}@contratos.gov`;
           }
         }
@@ -116,8 +110,8 @@ const Login = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transition-all duration-300">
         <div className="bg-blue-900 p-8 text-center relative">
-          <div className="h-20 w-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <img src="/logo.png" alt="Logo" className="h-14 w-14 object-contain" />
+          <div className="flex justify-center mb-6">
+            <img src="/logo.png" alt="Logo" className="h-20 w-auto object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white">Gestão de Contratos</h1>
           <p className="text-blue-200 mt-2">Acesso ao Sistema de Contratos</p>

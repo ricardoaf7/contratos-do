@@ -51,6 +51,7 @@ serve(async (req) => {
         id: userData.user.id,
         user_id: userData.user.id,
         nome,
+        email,
         username,
         role,
         manager_id: manager_id || null, // Mantido para compatibilidade

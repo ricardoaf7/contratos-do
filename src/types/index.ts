@@ -32,6 +32,7 @@ export interface Profile {
   id: string;
   user_id: string;
   nome: string;
+  email?: string;
   username?: string;
   role: 'diretor' | 'gerente' | 'fiscal';
   manager_id?: string; // Mantido para compatibilidade, mas a hierarquia principal será via gerencia_id/setor_id
