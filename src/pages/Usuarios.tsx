@@ -42,6 +42,24 @@ const Usuarios = () => {
     fetchData();
   }, []);
 
+  // Monitorar mudança de papel para ajustar campos automaticamente
+  useEffect(() => {
+    if (formData.role === 'diretor') {
+      // Tentar encontrar a "Diretoria de Operações"
+      const diretoriaSetor = setores.find(s => s.nome === 'Diretoria de Operações');
+      if (diretoriaSetor) {
+        setFormData(prev => ({
+          ...prev,
+          setor_id: diretoriaSetor.id,
+          gerencia_id: diretoriaSetor.gerencia_id
+        }));
+      }
+    } else if (formData.role === 'gerente') {
+      // Gerente não tem setor, limpar setor_id
+      setFormData(prev => ({ ...prev, setor_id: '' }));
+    }
+  }, [formData.role, setores]);
+
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -124,8 +142,6 @@ const Usuarios = () => {
     if (!window.confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) return;
 
     try {
-      // Nota: Em produção, deletar usuário do Auth requer Edge Function ou admin API.
-      // Aqui deletamos apenas o profile (o que "desativa" o usuário no app)
       const { error } = await supabase
         .from('profiles')
         .delete()
@@ -144,8 +160,19 @@ const Usuarios = () => {
     if (!formData.username.trim()) return 'Nome de usuário é obrigatório.';
     if (formData.username.includes(' ')) return 'Nome de usuário não pode conter espaços.';
     
-    if (formData.role === 'fiscal' && !formData.setor_id) return 'Para fiscais, o Setor é obrigatório.';
-    if (formData.role === 'fiscal' && !formData.gerencia_id) return 'Para fiscais, a Gerência é obrigatória.';
+    // Regras Específicas por Cargo
+    if (formData.role === 'fiscal') {
+        if (!formData.gerencia_id) return 'Para fiscais, a Gerência é obrigatória.';
+        if (!formData.setor_id) return 'Para fiscais, o Setor é obrigatório.';
+    } else if (formData.role === 'gerente') {
+        if (!formData.gerencia_id) return 'Para gerentes, a Gerência é obrigatória.';
+        // Gerente NÃO deve ter setor
+        if (formData.setor_id) return 'Gerentes não devem ser vinculados a um setor específico.';
+    } else if (formData.role === 'diretor') {
+        // Diretor deve estar vinculado à estrutura da Diretoria
+        // Verificamos se o setor selecionado (auto-preenchido) é válido
+        if (!formData.setor_id) return 'Diretor deve estar vinculado à Diretoria de Operações (Setor obrigatório).';
+    }
     
     if (!isEditMode) {
       if (!formData.email.trim()) return 'E-mail é obrigatório.';
@@ -175,7 +202,6 @@ const Usuarios = () => {
           role: formData.role,
           gerencia_id: formData.gerencia_id || null,
           setor_id: formData.setor_id || null,
-          // Manager ID mantido como fallback ou removido se não for mais usado
           manager_id: null 
         };
 
@@ -239,7 +265,6 @@ const Usuarios = () => {
       setGerencias([...gerencias, data]);
       setIsGerenciaModalOpen(false);
       setGerenciaForm({ nome: '' });
-      // Auto-select
       setFormData({...formData, gerencia_id: data.id});
     } catch (err: any) {
       alert('Erro ao criar gerência: ' + err.message);
@@ -261,14 +286,12 @@ const Usuarios = () => {
       setSetores([...setores, data]);
       setIsSetorModalOpen(false);
       setSetorForm({ nome: '', gerencia_id: '' });
-      // Auto-select
       setFormData({...formData, setor_id: data.id});
     } catch (err: any) {
       alert('Erro ao criar setor: ' + err.message);
     }
   };
 
-  // Filtragem
   const filteredProfiles = profiles.filter(p => 
     p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.username && p.username.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -477,21 +500,26 @@ const Usuarios = () => {
                     </select>
                   </div>
 
+                  {/* Campo Gerência */}
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-sm font-medium text-gray-700">Gerência</label>
-                      <button 
-                        type="button" 
-                        onClick={() => setIsGerenciaModalOpen(true)}
-                        className="text-xs text-blue-600 hover:underline flex items-center"
-                      >
-                        <Plus className="h-3 w-3 mr-1" /> Nova
-                      </button>
+                      {formData.role !== 'diretor' && (
+                        <button 
+                          type="button" 
+                          onClick={() => setIsGerenciaModalOpen(true)}
+                          className="text-xs text-blue-600 hover:underline flex items-center"
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Nova
+                        </button>
+                      )}
                     </div>
                     <select
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 
+                        ${formData.role === 'diretor' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                       value={formData.gerencia_id}
                       onChange={(e) => setFormData({...formData, gerencia_id: e.target.value, setor_id: ''})}
+                      disabled={formData.role === 'diretor'}
                     >
                       <option value="">-- Selecione --</option>
                       {gerencias.map(g => (
@@ -500,35 +528,41 @@ const Usuarios = () => {
                     </select>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-sm font-medium text-gray-700">Setor</label>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setSetorForm({ nome: '', gerencia_id: formData.gerencia_id });
-                          setIsSetorModalOpen(true);
-                        }}
-                        className="text-xs text-blue-600 hover:underline flex items-center"
+                  {/* Campo Setor (Oculto para Gerentes) */}
+                  {formData.role !== 'gerente' && (
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-gray-700">Setor</label>
+                        {formData.role !== 'diretor' && (
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setSetorForm({ nome: '', gerencia_id: formData.gerencia_id });
+                              setIsSetorModalOpen(true);
+                            }}
+                            className="text-xs text-blue-600 hover:underline flex items-center"
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Novo
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 
+                          ${formData.role === 'diretor' ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white'}`}
+                        value={formData.setor_id}
+                        onChange={(e) => setFormData({...formData, setor_id: e.target.value})}
+                        disabled={!formData.gerencia_id || formData.role === 'diretor'}
                       >
-                        <Plus className="h-3 w-3 mr-1" /> Novo
-                      </button>
+                        <option value="">-- Selecione --</option>
+                        {filteredSetores.map(s => (
+                          <option key={s.id} value={s.id}>{s.nome}</option>
+                        ))}
+                      </select>
+                      {!formData.gerencia_id && formData.role !== 'diretor' && (
+                        <p className="text-xs text-gray-400 mt-1">Selecione uma gerência primeiro.</p>
+                      )}
                     </div>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      value={formData.setor_id}
-                      onChange={(e) => setFormData({...formData, setor_id: e.target.value})}
-                      disabled={!formData.gerencia_id}
-                    >
-                      <option value="">-- Selecione --</option>
-                      {filteredSetores.map(s => (
-                        <option key={s.id} value={s.id}>{s.nome}</option>
-                      ))}
-                    </select>
-                    {!formData.gerencia_id && (
-                      <p className="text-xs text-gray-400 mt-1">Selecione uma gerência primeiro.</p>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
 
