@@ -592,104 +592,147 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
               )}
 
               {activeTab === 'valores' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                  {/* Valores Originais (Read Only if Edit) */}
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                      <History className="h-4 w-4" /> Valores e Datas Originais
+                <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+                  
+                  {/* --- VALORES E DATAS VIGENTES (Current) --- */}
+                  <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100 shadow-sm">
+                    <h4 className="text-base font-bold text-blue-900 mb-4 flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                      VALORES E DATAS VIGENTES
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                         <label className="block text-xs font-medium text-gray-500 mb-1">Valor Inicial do Contrato</label>
-                         <div className="font-medium text-gray-900">
-                           {contrato?.valor_inicial ? formatCurrency(contrato.valor_inicial) : (
-                             <span className="text-gray-400 italic">Será definido ao salvar</span>
-                           )}
-                         </div>
-                      </div>
-                      <div>
-                         <label className="block text-xs font-medium text-gray-500 mb-1">Vencimento Inicial</label>
-                         <div className="font-medium text-gray-900">
-                           {contrato?.data_vencimento_inicial ? formatDate(contrato.data_vencimento_inicial) : (
-                             <span className="text-gray-400 italic">Será definido ao salvar</span>
-                           )}
-                         </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Valor Mensal
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                        <CurrencyInput
-                          className="w-full pl-10 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                          value={formData.valor_mensal || 0}
-                          onChange={val => setFormData({...formData, valor_mensal: val})}
-                        />
-                        <button
-                          type="button"
-                          onClick={calculateAnnual}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
-                          title="Calcular Anual (x12)"
-                        >
-                          <Calculator className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Valor Total Atual <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                        <CurrencyInput
-                          className={`w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-blue-50 font-bold text-blue-700' : ''}`}
-                          value={formData.valor_anual || 0}
-                          onChange={val => setFormData({...formData, valor_anual: val})}
-                        />
-                      </div>
-                      {contrato && (
-                        <div className="flex items-start gap-2 mt-2 p-2 bg-yellow-50 rounded-lg text-xs text-yellow-700 border border-yellow-100">
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                          <p>
-                            Atenção: A edição direta deste campo altera o valor vigente. Para histórico legal, use a aba "Aditivos".
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Valor Mensal (Vigente)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                          <CurrencyInput
+                            className="w-full pl-10 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                            value={formData.valor_mensal || 0}
+                            onChange={val => setFormData({...formData, valor_mensal: val})}
+                          />
+                          <button
+                            type="button"
+                            onClick={calculateAnnual}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
+                            title="Calcular Anual (x12)"
+                          >
+                            <Calculator className="h-4 w-4" />
+                          </button>
+                        </div>
+                        {contrato && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            *Se alterado por aditivo, informe o novo valor aqui.
                           </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Valor Anual (Vigente)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                          <CurrencyInput
+                            className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 font-semibold text-gray-700"
+                            value={formData.valor_anual || 0}
+                            onChange={val => setFormData({...formData, valor_anual: val})}
+                            readOnly={!!contrato} // Read only if editing, calc auto
+                          />
+                        </div>
+                        {contrato && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-yellow-700">
+                             <AlertTriangle className="h-3 w-3" /> 
+                             Atualizado via aditivos ou cálculo mensal.
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vencimento Atual
+                        </label>
+                        <DateInput
+                          required
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-blue-700"
+                          value={formData.data_vencimento || ''}
+                          onChange={val => setFormData({...formData, data_vencimento: val})}
+                        />
+                      </div>
+
+                      {/* Calculated Deadlines */}
+                      {deadlineInfo && (
+                        <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-2">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Dias para vencimento:</span>
+                            <span className={`font-bold ${deadlineInfo.isExpired ? 'text-red-600' : deadlineInfo.isCritical ? 'text-orange-600' : 'text-green-600'}`}>
+                              {deadlineInfo.daysDiff} dias
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Limite Renovação (120d):</span>
+                            <span className="font-medium text-gray-800">
+                              {deadlineInfo.limitDate.toLocaleDateString('pt-BR')}
+                            </span>
+                          </div>
+                          {deadlineInfo.isCritical && !deadlineInfo.isExpired && (
+                            <div className="text-xs text-orange-600 font-medium flex items-center gap-1 pt-1 border-t border-gray-100">
+                              <AlertTriangle className="h-3 w-3" /> Atenção: Prazo de renovação próximo!
+                            </div>
+                          )}
+                           {deadlineInfo.isExpired && (
+                            <div className="text-xs text-red-600 font-medium flex items-center gap-1 pt-1 border-t border-gray-100">
+                              <AlertTriangle className="h-3 w-3" /> Contrato Vencido!
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Data Assinatura <span className="text-red-500">*</span>
-                      </label>
-                      <DateInput
-                        required
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={formData.data_assinatura || ''}
-                        onChange={val => setFormData({...formData, data_assinatura: val})}
-                        onBlur={calculateDates}
-                        disabled={!!contrato}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vencimento Atual <span className="text-red-500">*</span>
-                      </label>
-                      <DateInput
-                        required
-                        className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-blue-50 font-bold text-blue-700' : ''}`}
-                        value={formData.data_vencimento || ''}
-                        onChange={val => setFormData({...formData, data_vencimento: val})}
-                        readOnly={!!contrato}
-                      />
+                  {/* --- VALORES CONTRATADOS (Original/History) --- */}
+                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                    <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2 border-b border-gray-200 pb-2">
+                      <History className="h-4 w-4" /> VALORES CONTRATADOS (ORIGINAL)
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                      <div className="flex justify-between">
+                         <span className="text-gray-500">Valor Mensal:</span>
+                         <span className="font-medium text-gray-900">
+                           {contrato?.valor_mensal_inicial ? formatCurrency(contrato.valor_mensal_inicial) : '-'}
+                         </span>
+                      </div>
+                      <div className="flex justify-between">
+                         <span className="text-gray-500">Valor Anual:</span>
+                         <span className="font-medium text-gray-900">
+                           {contrato?.valor_inicial ? formatCurrency(contrato.valor_inicial) : '-'}
+                         </span>
+                      </div>
+                      <div className="flex justify-between">
+                         <span className="text-gray-500">Início Contrato:</span>
+                         <span className="font-medium text-gray-900">
+                            {formData.data_assinatura ? formatDate(formData.data_assinatura) : '-'}
+                         </span>
+                      </div>
+                      <div className="flex justify-between">
+                         <span className="text-gray-500">Vigência (Inicial):</span>
+                         <span className="font-medium text-gray-900">
+                            {contrato?.data_vencimento_inicial ? formatDate(contrato.data_vencimento_inicial) : '-'}
+                         </span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Hidden inputs to keep state consistent if user switches tabs */}
+                  <div className="hidden">
+                    <DateInput 
+                       value={formData.data_assinatura || ''} 
+                       onChange={val => setFormData({...formData, data_assinatura: val})} 
+                    />
+                  </div>
+
                 </div>
               )}
             </form>
