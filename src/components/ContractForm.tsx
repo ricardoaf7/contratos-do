@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calculator, Plus, Trash2, History, AlertTriangle } from 'lucide-react';
+import { X, Save, Calculator, Plus, Trash2, History, AlertTriangle, Edit2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Contrato, Profile, Aditivo } from '../types';
 
@@ -145,10 +145,17 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
   // Aditivos State
   const [aditivos, setAditivos] = useState<Aditivo[]>([]);
   const [showAditivoForm, setShowAditivoForm] = useState(false);
-  const [newAditivo, setNewAditivo] = useState<Partial<Aditivo>>({
+  const [editingAditivo, setEditingAditivo] = useState<Aditivo | null>(null);
+  
+  const initialAditivoState: Partial<Aditivo> = {
+    tipo: 'Aditivo',
+    numero_aditivo: '',
     valor_aditivo: 0,
-    descricao: ''
-  });
+    descricao: '',
+    novo_valor_mensal: 0
+  };
+  
+  const [newAditivo, setNewAditivo] = useState<Partial<Aditivo>>(initialAditivoState);
 
   const [formData, setFormData] = useState<Partial<Contrato>>({
     numero_processo: '',
@@ -191,7 +198,7 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
       .from('aditivos')
       .select('*')
       .eq('contrato_id', contrato.id)
-      .order('numero_sequencial', { ascending: true });
+      .order('data_assinatura', { ascending: true }); // Ordered by date for timeline
     if (data) setAditivos(data);
   };
 
@@ -223,46 +230,94 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
     }
   };
 
-  const handleAddAditivo = async (e: React.FormEvent) => {
+  const handleEditAditivo = (aditivo: Aditivo) => {
+    setEditingAditivo(aditivo);
+    setNewAditivo({
+      ...aditivo,
+      novo_valor_mensal: aditivo.novo_valor_mensal || 0
+    });
+    setShowAditivoForm(true);
+  };
+
+  const handleDeleteAditivo = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este registro? Isso não reverte automaticamente os valores do contrato.')) return;
+    
+    try {
+      const { error } = await supabase.from('aditivos').delete().eq('id', id);
+      if (error) throw error;
+      fetchAditivos();
+      alert('Registro excluído.');
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + err.message);
+    }
+  };
+
+  const handleSaveAditivo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contrato?.id || !newAditivo.data_assinatura || newAditivo.valor_aditivo === undefined) return;
+    if (!contrato?.id || !newAditivo.data_assinatura) return;
     setLoading(true);
 
     try {
-      // 1. Insert Aditivo
-      const nextSeq = aditivos.length + 1;
-      const { error: aditivoError } = await supabase.from('aditivos').insert({
+      const payload = {
         contrato_id: contrato.id,
-        numero_sequencial: nextSeq,
+        tipo: newAditivo.tipo,
+        numero_aditivo: newAditivo.tipo === 'Aditivo' ? newAditivo.numero_aditivo : null,
         data_assinatura: newAditivo.data_assinatura,
-        valor_aditivo: newAditivo.valor_aditivo,
+        // We might not need 'valor_aditivo' anymore if logic is purely new monthly value, but keeping for diff
+        valor_aditivo: 0, 
+        novo_valor_mensal: newAditivo.novo_valor_mensal,
         novo_vencimento: newAditivo.novo_vencimento || null,
         descricao: newAditivo.descricao
-      });
-      if (aditivoError) throw aditivoError;
+      };
 
-      // 2. Update Contract (Accumulate Values)
-      const newTotal = (formData.valor_anual || 0) + Number(newAditivo.valor_aditivo);
-      const newVencimento = newAditivo.novo_vencimento || formData.data_vencimento;
+      if (editingAditivo) {
+        // Update existing
+        const { error } = await supabase
+          .from('aditivos')
+          .update(payload)
+          .eq('id', editingAditivo.id);
+        if (error) throw error;
+      } else {
+        // Create new
+        const { error } = await supabase.from('aditivos').insert(payload);
+        if (error) throw error;
+      }
 
-      const { error: contractError } = await supabase
-        .from('contratos')
-        .update({
-          valor_anual: newTotal,
-          data_vencimento: newVencimento
-        })
-        .eq('id', contrato.id);
-      
-      if (contractError) throw contractError;
+      // Logic to update main contract values based on this latest action
+      // Note: In a real complex system, we might want to "replay" all aditivos to find current state.
+      // Here we assume the user is adding the *latest* change which should reflect current state.
+      if (newAditivo.novo_valor_mensal !== undefined && newAditivo.novo_valor_mensal > 0) {
+         const newAnnual = newAditivo.novo_valor_mensal * 12;
+         const updatePayload: any = {
+           valor_mensal: newAditivo.novo_valor_mensal,
+           valor_anual: newAnnual
+         };
+         if (newAditivo.novo_vencimento) {
+            updatePayload.data_vencimento = newAditivo.novo_vencimento;
+         }
 
-      alert('Aditivo registrado com sucesso!');
+         const { error: contractError } = await supabase
+          .from('contratos')
+          .update(updatePayload)
+          .eq('id', contrato.id);
+         
+         if (contractError) throw contractError;
+         
+         // Update local state to reflect changes immediately
+         setFormData(prev => ({
+            ...prev,
+            ...updatePayload
+         }));
+      }
+
+      alert('Registro salvo com sucesso!');
       setShowAditivoForm(false);
-      setNewAditivo({ valor_aditivo: 0, descricao: '' });
+      setEditingAditivo(null);
+      setNewAditivo(initialAditivoState);
       fetchAditivos();
-      setFormData(prev => ({ ...prev, valor_anual: newTotal, data_vencimento: newVencimento }));
-      onSuccess(); 
+      onSuccess();
     } catch (err: any) {
-      alert('Erro ao adicionar aditivo: ' + err.message);
+      alert('Erro ao salvar: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -388,20 +443,54 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
           {activeTab === 'aditivos' ? (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">Aditivos Contratuais</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Histórico de Alterações</h3>
                 <button
-                  onClick={() => setShowAditivoForm(!showAditivoForm)}
+                  onClick={() => {
+                    setEditingAditivo(null);
+                    setNewAditivo(initialAditivoState);
+                    setShowAditivoForm(!showAditivoForm);
+                  }}
                   className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium text-sm transition-colors"
                 >
                   <Plus className="h-4 w-4" />
-                  {showAditivoForm ? 'Cancelar' : 'Novo Aditivo'}
+                  {showAditivoForm ? 'Cancelar' : 'Novo Registro'}
                 </button>
               </div>
 
-              {/* Add Aditivo Form */}
+              {/* Add/Edit Aditivo Form */}
               {showAditivoForm && (
-                <form onSubmit={handleAddAditivo} className="bg-gray-50 p-4 rounded-xl border border-blue-100 space-y-4 animate-in fade-in slide-in-from-top-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <form onSubmit={handleSaveAditivo} className="bg-gray-50 p-4 rounded-xl border border-blue-100 space-y-4 animate-in fade-in slide-in-from-top-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    
+                    {/* Tipo */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Tipo de Registro</label>
+                      <select
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                        value={newAditivo.tipo || 'Aditivo'}
+                        onChange={e => setNewAditivo({...newAditivo, tipo: e.target.value as any})}
+                      >
+                        <option value="Aditivo">Termo Aditivo</option>
+                        <option value="Apostilamento">Apostilamento</option>
+                      </select>
+                    </div>
+
+                    {/* Número (Only for Aditivo) */}
+                    {newAditivo.tipo === 'Aditivo' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Número do Aditivo</label>
+                        <input
+                          type="text"
+                          required
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                          placeholder="Ex: 1, 2, 3..."
+                          value={newAditivo.numero_aditivo || ''}
+                          onChange={e => setNewAditivo({...newAditivo, numero_aditivo: e.target.value})}
+                        />
+                      </div>
+                    )}
+
+                    {/* Data */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Data Assinatura</label>
                       <DateInput
@@ -411,59 +500,65 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                         onChange={val => setNewAditivo({...newAditivo, data_assinatura: val})}
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Adicionado (Global)</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
-                        <CurrencyInput
-                          className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          value={newAditivo.valor_aditivo || 0}
-                          onChange={val => setNewAditivo({...newAditivo, valor_aditivo: val})}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">Acresce ao valor anual total.</p>
-                    </div>
 
+                    {/* Novo Valor Mensal */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Novo Valor Mensal (Opcional)</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Novo Valor Mensal Atualizado</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
                         <CurrencyInput
-                          className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-blue-50/30 border-blue-100"
+                          className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
                           value={newAditivo.novo_valor_mensal || 0}
                           onChange={val => setNewAditivo({...newAditivo, novo_valor_mensal: val})}
                         />
                       </div>
-                      <p className="text-xs text-blue-600 mt-1">Atualiza o valor mensal vigente.</p>
+                      <p className="text-xs text-gray-500 mt-1">Informe o valor final mensal após a alteração.</p>
                     </div>
 
+                    {/* Novo Vencimento */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Novo Vencimento (Opcional)</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Novo Vencimento (Se houver)</label>
                       <DateInput
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                         value={newAditivo.novo_vencimento || ''}
                         onChange={val => setNewAditivo({...newAditivo, novo_vencimento: val})}
                       />
                     </div>
-                    <div className="md:col-span-3">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Descrição / Objeto do Aditivo</label>
+
+                    {/* Descrição */}
+                    <div className="md:col-span-2 lg:col-span-3">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Descrição / Objeto</label>
                       <input
                         type="text"
                         required
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                        placeholder="Ex: Prorrogação de prazo por 12 meses e reajuste de valor."
+                        placeholder="Ex: Reajuste anual de 4% e prorrogação de prazo."
                         value={newAditivo.descricao}
                         onChange={e => setNewAditivo({...newAditivo, descricao: e.target.value})}
                       />
                     </div>
                   </div>
-                  <div className="flex justify-end pt-2">
+                  
+                  <div className="flex justify-end pt-2 gap-2">
+                    {editingAditivo && (
+                       <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAditivo(null);
+                          setNewAditivo(initialAditivoState);
+                          setShowAditivoForm(false);
+                        }}
+                        className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
                     <button
                       type="submit"
                       disabled={loading}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {loading ? 'Registrando...' : 'Registrar Aditivo'}
+                      {loading ? 'Salvando...' : (editingAditivo ? 'Atualizar Registro' : 'Salvar Registro')}
                     </button>
                   </div>
                 </form>
@@ -474,35 +569,64 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                 <table className="w-full text-sm text-left">
                   <thead className="bg-gray-50 border-b">
                     <tr>
-                      <th className="px-4 py-3 font-medium text-gray-700">#</th>
+                      <th className="px-4 py-3 font-medium text-gray-700">Tipo / Nº</th>
                       <th className="px-4 py-3 font-medium text-gray-700">Data</th>
                       <th className="px-4 py-3 font-medium text-gray-700">Descrição</th>
-                      <th className="px-4 py-3 font-medium text-gray-700 text-right">Valor (+/-)</th>
+                      <th className="px-4 py-3 font-medium text-gray-700 text-right">Novo Mensal</th>
                       <th className="px-4 py-3 font-medium text-gray-700 text-right">Novo Vencimento</th>
+                      <th className="px-4 py-3 font-medium text-gray-700 text-center">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {aditivos.length === 0 ? (
+                    {/* Initial Contract Row */}
+                    <tr className="bg-gray-50/50 italic text-gray-500">
+                       <td className="px-4 py-3">Contrato Inicial</td>
+                       <td className="px-4 py-3">{formatDate(formData.data_assinatura)}</td>
+                       <td className="px-4 py-3">Assinatura do Contrato</td>
+                       <td className="px-4 py-3 text-right">{formatCurrency(contrato?.valor_mensal_inicial)}</td>
+                       <td className="px-4 py-3 text-right">{formatDate(contrato?.data_vencimento_inicial)}</td>
+                       <td className="px-4 py-3 text-center">-</td>
+                    </tr>
+
+                    {aditivos.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                          Nenhum aditivo registrado.
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          Nenhuma alteração registrada além do contrato inicial.
                         </td>
                       </tr>
-                    ) : (
-                      aditivos.map((ad) => (
-                        <tr key={ad.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-500">{ad.numero_sequencial}º</td>
-                          <td className="px-4 py-3">{formatDate(ad.data_assinatura)}</td>
-                          <td className="px-4 py-3">{ad.descricao}</td>
-                          <td className={`px-4 py-3 text-right font-medium ${ad.valor_aditivo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {ad.valor_aditivo > 0 ? '+' : ''}{formatCurrency(ad.valor_aditivo)}
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {formatDate(ad.novo_vencimento)}
-                          </td>
-                        </tr>
-                      ))
                     )}
+                    
+                    {aditivos.map((ad) => (
+                      <tr key={ad.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {ad.tipo === 'Aditivo' ? `${ad.numero_aditivo}º Aditivo` : 'Apostilamento'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{formatDate(ad.data_assinatura)}</td>
+                        <td className="px-4 py-3 text-gray-600">{ad.descricao}</td>
+                        <td className="px-4 py-3 text-right font-medium text-blue-600">
+                          {ad.novo_valor_mensal ? formatCurrency(ad.novo_valor_mensal) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {formatDate(ad.novo_vencimento)}
+                        </td>
+                        <td className="px-4 py-3 text-center flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => handleEditAditivo(ad)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Editar"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteAditivo(ad.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

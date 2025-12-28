@@ -33,10 +33,12 @@ export interface Contrato {
 export interface Aditivo {
   id: string;
   contrato_id: string;
-  numero_sequencial: number;
+  tipo: 'Aditivo' | 'Apostilamento'; // New field
+  numero_aditivo?: string; // New field (manual input)
+  numero_sequencial?: number; // Deprecated but kept for ordering
   data_assinatura: string;
-  valor_aditivo: number;
-  novo_valor_mensal?: number; // New field
+  valor_aditivo: number; // Keep for diff storage if needed
+  novo_valor_mensal?: number; // New target value
   novo_vencimento?: string;
   descricao: string;
   created_at?: string;
