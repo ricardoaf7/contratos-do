@@ -149,8 +149,13 @@ const Contratos = () => {
                   <tr key={contrato.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-medium text-blue-600">{contrato.numero_processo}</div>
-                      <div className="text-gray-900 font-medium mt-1">{contrato.empresa_contratada}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{contrato.modalidade}</div>
+                      <div className="text-gray-900 font-bold mt-1">
+                        {contrato.nome_exibicao || contrato.empresa_contratada}
+                      </div>
+                      {contrato.nome_exibicao && contrato.nome_exibicao !== contrato.empresa_contratada && (
+                        <div className="text-xs text-gray-500">{contrato.empresa_contratada}</div>
+                      )}
+                      <div className="text-xs text-gray-400 mt-0.5">{contrato.modalidade}</div>
                     </td>
                     <td className="px-6 py-4 max-w-xs truncate" title={contrato.objeto}>
                       {contrato.objeto}
