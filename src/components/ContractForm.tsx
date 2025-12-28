@@ -54,6 +54,89 @@ const CurrencyInput = ({
   );
 };
 
+const DateInput = ({ 
+  value, 
+  onChange, 
+  required = false, 
+  disabled = false, 
+  readOnly = false,
+  className = "",
+  onBlur
+}: { 
+  value: string, 
+  onChange: (val: string) => void, 
+  required?: boolean,
+  disabled?: boolean, 
+  readOnly?: boolean,
+  className?: string,
+  onBlur?: () => void
+}) => {
+  const toDisplay = (val: string) => {
+    if (!val) return '';
+    const [y, m, d] = val.split('-');
+    return `${d}/${m}/${y}`;
+  };
+
+  const [display, setDisplay] = useState(toDisplay(value));
+
+  useEffect(() => {
+    // Only update display if value is different from what current display represents
+    // This avoids cursor jumping issues if we were to strictly sync on every render
+    const currentYMD = display.split('/').reverse().join('-');
+    if (value !== currentYMD) {
+       setDisplay(toDisplay(value));
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let input = e.target.value.replace(/\D/g, '');
+    if (input.length > 8) input = input.slice(0, 8);
+
+    let formatted = '';
+    if (input.length > 0) {
+      formatted = input.slice(0, 2);
+      if (input.length > 2) {
+        formatted += '/' + input.slice(2, 4);
+        if (input.length > 4) {
+          formatted += '/' + input.slice(4, 8);
+        }
+      }
+    }
+    
+    setDisplay(formatted);
+
+    if (input.length === 8) {
+      const day = input.slice(0, 2);
+      const month = input.slice(2, 4);
+      const year = input.slice(4, 8);
+      // Basic validation could be improved, but this suffices for format conversion
+      onChange(`${year}-${month}-${day}`);
+    } else if (input.length === 0) {
+      onChange('');
+    }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        className={className}
+        value={display}
+        onChange={handleChange}
+        disabled={disabled}
+        readOnly={readOnly}
+        required={required}
+        onBlur={onBlur}
+        placeholder="DD/MM/AAAA"
+        maxLength={10}
+      />
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+      </div>
+    </div>
+  );
+};
+
 const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('dados');
@@ -295,12 +378,15 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Adicionado (R$)</label>
-                      <CurrencyInput
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                        value={newAditivo.valor_aditivo || 0}
-                        onChange={val => setNewAditivo({...newAditivo, valor_aditivo: val})}
-                      />
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Adicionado</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                        <CurrencyInput
+                          className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm"
+                          value={newAditivo.valor_aditivo || 0}
+                          onChange={val => setNewAditivo({...newAditivo, valor_aditivo: val})}
+                        />
+                      </div>
                       <p className="text-xs text-gray-400 mt-1">Use negativo para supressão.</p>
                     </div>
                     <div>
