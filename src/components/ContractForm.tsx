@@ -666,13 +666,13 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Data Assinatura <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="date"
+                      <DateInput
                         required
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={formData.data_assinatura}
-                        onChange={e => setFormData({...formData, data_assinatura: e.target.value})}
+                        value={formData.data_assinatura || ''}
+                        onChange={val => setFormData({...formData, data_assinatura: val})}
                         onBlur={calculateDates}
+                        disabled={!!contrato}
                       />
                     </div>
 
@@ -680,12 +680,12 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Vencimento Atual <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="date"
+                      <DateInput
                         required
                         className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-blue-50 font-bold text-blue-700' : ''}`}
-                        value={formData.data_vencimento}
-                        onChange={e => setFormData({...formData, data_vencimento: e.target.value})}
+                        value={formData.data_vencimento || ''}
+                        onChange={val => setFormData({...formData, data_vencimento: val})}
+                        readOnly={!!contrato}
                       />
                     </div>
                   </div>
