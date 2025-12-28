@@ -287,12 +287,11 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Data Assinatura</label>
-                      <input
-                        type="date"
+                      <DateInput
                         required
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                         value={newAditivo.data_assinatura || ''}
-                        onChange={e => setNewAditivo({...newAditivo, data_assinatura: e.target.value})}
+                        onChange={val => setNewAditivo({...newAditivo, data_assinatura: val})}
                       />
                     </div>
                     <div>
@@ -306,11 +305,10 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Novo Vencimento (Opcional)</label>
-                      <input
-                        type="date"
+                      <DateInput
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                         value={newAditivo.novo_vencimento || ''}
-                        onChange={e => setNewAditivo({...newAditivo, novo_vencimento: e.target.value})}
+                        onChange={val => setNewAditivo({...newAditivo, novo_vencimento: val})}
                       />
                     </div>
                     <div className="md:col-span-3">
