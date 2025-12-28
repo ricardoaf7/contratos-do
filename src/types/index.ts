@@ -36,6 +36,7 @@ export interface Aditivo {
   numero_sequencial: number;
   data_assinatura: string;
   valor_aditivo: number;
+  novo_valor_mensal?: number; // New field
   novo_vencimento?: string;
   descricao: string;
   created_at?: string;

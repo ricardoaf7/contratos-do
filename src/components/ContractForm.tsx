@@ -412,7 +412,7 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Adicionado</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Valor Adicionado (Global)</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
                         <CurrencyInput
@@ -421,8 +421,22 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                           onChange={val => setNewAditivo({...newAditivo, valor_aditivo: val})}
                         />
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">Use negativo para supressão.</p>
+                      <p className="text-xs text-gray-400 mt-1">Acresce ao valor anual total.</p>
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Novo Valor Mensal (Opcional)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                        <CurrencyInput
+                          className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-blue-50/30 border-blue-100"
+                          value={newAditivo.novo_valor_mensal || 0}
+                          onChange={val => setNewAditivo({...newAditivo, novo_valor_mensal: val})}
+                        />
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">Atualiza o valor mensal vigente.</p>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Novo Vencimento (Opcional)</label>
                       <DateInput
