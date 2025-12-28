@@ -283,6 +283,7 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
         const payload = {
           ...formData,
           valor_inicial: formData.valor_anual,
+          valor_mensal_inicial: formData.valor_mensal, // Save initial monthly
           data_vencimento_inicial: formData.data_vencimento
         };
         const { error } = await supabase

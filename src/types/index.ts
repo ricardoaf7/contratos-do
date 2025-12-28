@@ -19,7 +19,8 @@ export interface Contrato {
   data_limite_legal: string;
   
   // Valores Originais (Snapshot inicial)
-  valor_inicial?: number;
+  valor_inicial?: number; // Annual Initial
+  valor_mensal_inicial?: number; // Monthly Initial
   data_vencimento_inicial?: string;
 
   alerta_ativo: boolean;
