@@ -308,6 +308,39 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
     return `${d}/${m}/${y}`;
   };
 
+  const calculateDeadlineInfo = () => {
+    if (!formData.data_vencimento) return null;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Parse the DD-MM-YYYY or YYYY-MM-DD format correctly
+    const parts = formData.data_vencimento.includes('/') 
+      ? formData.data_vencimento.split('/') 
+      : formData.data_vencimento.split('-');
+      
+    let vencimento: Date;
+    if (parts[0].length === 4) {
+       vencimento = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    } else {
+       vencimento = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    }
+    
+    // Days diff
+    const diffTime = vencimento.getTime() - today.getTime();
+    const daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Renewal Limit (120 days before)
+    const limitDate = new Date(vencimento);
+    limitDate.setDate(limitDate.getDate() - 120);
+    
+    const isCritical = daysDiff <= 120;
+    const isExpired = daysDiff < 0;
+
+    return { daysDiff, limitDate, isCritical, isExpired };
+  };
+
+  const deadlineInfo = calculateDeadlineInfo();
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
