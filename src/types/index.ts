@@ -1,7 +1,9 @@
 export interface Contrato {
   id: string;
   numero_processo: string;
+  numero_contrato?: string; // New field
   modalidade: string;
+  numero_modalidade?: string; // New field
   tipo: string;
   empresa_contratada: string; // Razão Social / Nome Completo
   nome_exibicao?: string; // Nome Fantasia / Exibição

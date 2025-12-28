@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calculator, Plus, Trash2, History } from 'lucide-react';
+import { X, Save, Calculator, Plus, Trash2, History, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Contrato, Profile, Aditivo } from '../types';
 
@@ -10,6 +10,49 @@ interface ContractFormProps {
 }
 
 type TabType = 'dados' | 'valores' | 'aditivos';
+
+const CurrencyInput = ({ 
+  value, 
+  onChange, 
+  disabled = false, 
+  readOnly = false,
+  className = "" 
+}: { 
+  value: number, 
+  onChange: (val: number) => void, 
+  disabled?: boolean, 
+  readOnly?: boolean,
+  className?: string
+}) => {
+  const formatDisplay = (val: number) => {
+    if (val === undefined || val === null) return '';
+    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+  };
+
+  const [displayValue, setDisplayValue] = useState(formatDisplay(value));
+
+  useEffect(() => {
+    setDisplayValue(formatDisplay(value));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    const numValue = Number(rawValue) / 100;
+    onChange(numValue);
+  };
+
+  return (
+    <input
+      type="text"
+      className={className}
+      value={displayValue}
+      onChange={handleChange}
+      disabled={disabled}
+      readOnly={readOnly}
+      placeholder="0,00"
+    />
+  );
+};
 
 const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
   const [loading, setLoading] = useState(false);
@@ -26,7 +69,9 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
 
   const [formData, setFormData] = useState<Partial<Contrato>>({
     numero_processo: '',
+    numero_contrato: '', // New field
     modalidade: '',
+    numero_modalidade: '', // New field
     tipo: 'Serviços',
     empresa_contratada: '',
     nome_exibicao: '',
@@ -77,6 +122,7 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
       const limite = new Date(assinatura);
       limite.setMonth(limite.getMonth() + 60);
 
+      // Only update if empty, otherwise respect user input/correction
       setFormData(prev => ({
         ...prev,
         data_vencimento: prev.data_vencimento || vencimento.toISOString().split('T')[0],
@@ -126,16 +172,12 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
       
       if (contractError) throw contractError;
 
-      // 3. Create Version Snapshot (Optional but good practice)
-      // For now, we rely on the main update.
-
       alert('Aditivo registrado com sucesso!');
       setShowAditivoForm(false);
       setNewAditivo({ valor_aditivo: 0, descricao: '' });
       fetchAditivos();
-      // Update local form state to reflect new totals
       setFormData(prev => ({ ...prev, valor_anual: newTotal, data_vencimento: newVencimento }));
-      onSuccess(); // Refresh parent list
+      onSuccess(); 
     } catch (err: any) {
       alert('Erro ao adicionar aditivo: ' + err.message);
     } finally {
@@ -155,7 +197,6 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
           .eq('id', contrato.id);
         if (error) throw error;
       } else {
-        // New Contract: Initialize 'inicial' values same as current
         const payload = {
           ...formData,
           valor_inicial: formData.valor_anual,
@@ -256,14 +297,10 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Valor Adicionado (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
+                      <CurrencyInput
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                        placeholder="Ex: 1000.00 ou -500.00"
-                        value={newAditivo.valor_aditivo}
-                        onChange={e => setNewAditivo({...newAditivo, valor_aditivo: parseFloat(e.target.value)})}
+                        value={newAditivo.valor_aditivo || 0}
+                        onChange={val => setNewAditivo({...newAditivo, valor_aditivo: val})}
                       />
                       <p className="text-xs text-gray-400 mt-1">Use negativo para supressão.</p>
                     </div>
@@ -344,12 +381,27 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-left-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Número do Contrato <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Ex: 123/2024"
+                      value={formData.numero_contrato || ''}
+                      onChange={e => setFormData({...formData, numero_contrato: e.target.value})}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Número do Processo <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Ex: 4567/2024"
                       value={formData.numero_processo}
                       onChange={e => setFormData({...formData, numero_processo: e.target.value})}
                     />
@@ -372,6 +424,19 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       <option value="Inexigibilidade">Inexigibilidade</option>
                       <option value="Adesão à Ata">Adesão à Ata</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nº da Modalidade
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="Ex: 011/2024-FUL"
+                      value={formData.numero_modalidade || ''}
+                      onChange={e => setFormData({...formData, numero_modalidade: e.target.value})}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
@@ -475,24 +540,19 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
+                        <CurrencyInput
                           className="w-full pl-10 pr-10 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                          value={formData.valor_mensal}
-                          onChange={e => setFormData({...formData, valor_mensal: parseFloat(e.target.value)})}
-                          disabled={!!contrato} // Disable if editing (use aditivos)
+                          value={formData.valor_mensal || 0}
+                          onChange={val => setFormData({...formData, valor_mensal: val})}
                         />
-                        {!contrato && (
-                          <button
-                            type="button"
-                            onClick={calculateAnnual}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
-                            title="Calcular Anual (x12)"
-                          >
-                            <Calculator className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={calculateAnnual}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600"
+                          title="Calcular Anual (x12)"
+                        >
+                          <Calculator className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
 
@@ -502,17 +562,20 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          className={`w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-gray-100 font-bold text-blue-700' : ''}`}
-                          value={formData.valor_anual}
-                          onChange={e => setFormData({...formData, valor_anual: parseFloat(e.target.value)})}
-                          readOnly={!!contrato} // Read only if editing
+                        <CurrencyInput
+                          className={`w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-blue-50 font-bold text-blue-700' : ''}`}
+                          value={formData.valor_anual || 0}
+                          onChange={val => setFormData({...formData, valor_anual: val})}
                         />
                       </div>
-                      {contrato && <p className="text-xs text-blue-600 mt-1">Este valor inclui aditivos.</p>}
+                      {contrato && (
+                        <div className="flex items-start gap-2 mt-2 p-2 bg-yellow-50 rounded-lg text-xs text-yellow-700 border border-yellow-100">
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          <p>
+                            Atenção: A edição direta deste campo altera o valor vigente. Para histórico legal, use a aba "Aditivos".
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -526,7 +589,6 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                         value={formData.data_assinatura}
                         onChange={e => setFormData({...formData, data_assinatura: e.target.value})}
                         onBlur={calculateDates}
-                        disabled={!!contrato}
                       />
                     </div>
 
@@ -537,10 +599,9 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       <input
                         type="date"
                         required
-                        className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-gray-100 font-bold text-blue-700' : ''}`}
+                        className={`w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${contrato ? 'bg-blue-50 font-bold text-blue-700' : ''}`}
                         value={formData.data_vencimento}
                         onChange={e => setFormData({...formData, data_vencimento: e.target.value})}
-                        readOnly={!!contrato}
                       />
                     </div>
                   </div>

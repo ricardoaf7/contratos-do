@@ -172,6 +172,9 @@ const Contratos = () => {
                         </span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-right font-medium text-gray-600">
+                      {formatCurrency(contrato.valor_mensal)}
+                    </td>
                     <td className="px-6 py-4 text-right font-medium text-gray-900">
                       {formatCurrency(contrato.valor_anual)}
                     </td>
