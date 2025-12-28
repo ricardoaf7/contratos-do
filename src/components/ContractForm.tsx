@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calculator, Plus, Trash2, History, AlertTriangle, Edit2 } from 'lucide-react';
+import { X, Save, Calculator, Plus, Trash2, History, AlertTriangle, Edit2, Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Contrato, Profile, Aditivo } from '../types';
 
@@ -141,6 +141,7 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('dados');
   const [fiscais, setFiscais] = useState<Profile[]>([]);
+  const [isMaximized, setIsMaximized] = useState(false);
   
   // Aditivos State
   const [aditivos, setAditivos] = useState<Aditivo[]>([]);
@@ -173,14 +174,27 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
     data_limite_legal: '',
     alerta_ativo: true,
     fiscal_responsavel: '',
+    // Renovação
+    renovacao_solicitada: undefined,
+    data_solicitacao_renovacao: '',
+    processo_sei_renovacao: '',
+    justificativa_nao_renovacao: '',
     ...contrato
   });
 
   useEffect(() => {
-    fetchFiscais();
-    if (contrato?.id) {
+    if (contrato) {
+      setFormData({
+        ...contrato,
+        // Ensure renovation fields are correctly mapped from the contract prop
+        renovacao_solicitada: contrato.renovacao_solicitada,
+        data_solicitacao_renovacao: contrato.data_solicitacao_renovacao || '',
+        processo_sei_renovacao: contrato.processo_sei_renovacao || '',
+        justificativa_nao_renovacao: contrato.justificativa_nao_renovacao || ''
+      });
       fetchAditivos();
     }
+    fetchFiscais();
   }, [contrato]);
 
   const fetchFiscais = async () => {
@@ -327,23 +341,38 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
     e.preventDefault();
     setLoading(true);
 
+    // Prepare payload with sanitized dates
+    const payload = {
+      ...formData,
+      // Convert empty strings to null for date fields to avoid DB errors
+      data_solicitacao_renovacao: formData.data_solicitacao_renovacao || null,
+      // Clear mutually exclusive fields based on selection
+      ...(formData.renovacao_solicitada === false ? {
+         data_solicitacao_renovacao: null,
+         processo_sei_renovacao: null
+      } : {}),
+      ...(formData.renovacao_solicitada === true ? {
+         justificativa_nao_renovacao: null
+      } : {})
+    };
+
     try {
       if (contrato?.id) {
         const { error } = await supabase
           .from('contratos')
-          .update(formData)
+          .update(payload)
           .eq('id', contrato.id);
         if (error) throw error;
       } else {
-        const payload = {
-          ...formData,
-          valor_inicial: formData.valor_anual,
-          valor_mensal_inicial: formData.valor_mensal, // Save initial monthly
-          data_vencimento_inicial: formData.data_vencimento
+        const insertPayload = {
+          ...payload,
+          valor_inicial: payload.valor_anual,
+          valor_mensal_inicial: payload.valor_mensal, // Save initial monthly
+          data_vencimento_inicial: payload.data_vencimento
         };
         const { error } = await supabase
           .from('contratos')
-          .insert(payload);
+          .insert(insertPayload);
         if (error) throw error;
       }
       onSuccess();
@@ -384,21 +413,67 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
     const diffTime = vencimento.getTime() - today.getTime();
     const daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    // Renewal Limit (120 days before)
-    const limitDate = new Date(vencimento);
-    limitDate.setDate(limitDate.getDate() - 120);
+    // Renewal Limit (120 days before expiration)
+    const limitRequestDate = new Date(vencimento);
+    limitRequestDate.setDate(limitRequestDate.getDate() - 120);
+
+    // Legal Limit (60 months from start)
+    let limitLegalDate = null;
+    if (formData.data_assinatura) {
+        const startParts = formData.data_assinatura.includes('/')
+            ? formData.data_assinatura.split('/')
+            : formData.data_assinatura.split('-');
+         let start: Date;
+         if (startParts[0].length === 4) {
+            start = new Date(Number(startParts[0]), Number(startParts[1]) - 1, Number(startParts[2]));
+         } else {
+            start = new Date(Number(startParts[2]), Number(startParts[1]) - 1, Number(startParts[0]));
+         }
+         limitLegalDate = new Date(start);
+         limitLegalDate.setMonth(limitLegalDate.getMonth() + 60);
+    }
     
     const isCritical = daysDiff <= 120;
     const isExpired = daysDiff < 0;
+    const isPastRenewalDeadline = today > limitRequestDate;
 
-    return { daysDiff, limitDate, isCritical, isExpired };
+    return { daysDiff, limitRequestDate, limitLegalDate, isCritical, isExpired, isPastRenewalDeadline };
   };
 
   const deadlineInfo = calculateDeadlineInfo();
 
+  const getValueSourceLabel = () => {
+    const reversed = [...aditivos].reverse();
+    // We assume an aditivo changed the value if novo_valor_mensal is set and > 0
+    const lastUpdate = reversed.find(a => a.novo_valor_mensal && a.novo_valor_mensal > 0);
+
+    if (lastUpdate) {
+      const num = lastUpdate.tipo === 'Aditivo' ? ` ${lastUpdate.numero_aditivo}` : '';
+      return `Atualizado conforme ${lastUpdate.tipo}${num}`;
+    }
+    return 'Atualizado conforme Contrato Inicial';
+  };
+
+  const getDateSourceLabel = () => {
+    const reversed = [...aditivos].reverse();
+    const lastUpdate = reversed.find(a => a.novo_vencimento);
+
+    if (lastUpdate) {
+      const num = lastUpdate.tipo === 'Aditivo' ? ` ${lastUpdate.numero_aditivo}` : '';
+      return `Atualizado conforme ${lastUpdate.tipo}${num}`;
+    }
+    return 'Atualizado conforme Contrato Inicial';
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
+      <div 
+        className={`bg-white shadow-xl flex flex-col transition-all duration-300 ${
+          isMaximized 
+            ? 'fixed inset-0 w-full h-full rounded-none' 
+            : 'rounded-xl w-full max-w-4xl max-h-[90vh]'
+        }`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50 rounded-t-xl">
           <div>
@@ -409,9 +484,22 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
               <p className="text-sm text-gray-500 mt-1">Processo: {contrato.numero_processo}</p>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-200 rounded-full transition-colors">
-            <X className="h-6 w-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-200 rounded-full transition-colors"
+              title={isMaximized ? "Restaurar" : "Maximizar"}
+            >
+              {isMaximized ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+            </button>
+            <button 
+              onClick={onClose} 
+              className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-200 rounded-full transition-colors"
+              title="Fechar"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -531,6 +619,8 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       <input
                         type="text"
                         required
+                        lang="pt-BR"
+                        spellCheck={true}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                         placeholder="Ex: Reajuste anual de 4% e prorrogação de prazo."
                         value={newAditivo.descricao}
@@ -606,8 +696,8 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                         <td className="px-4 py-3 text-right font-medium text-blue-600">
                           {ad.novo_valor_mensal ? formatCurrency(ad.novo_valor_mensal) : '-'}
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-600">
-                          {formatDate(ad.novo_vencimento)}
+                        <td className="px-4 py-3 text-right font-medium text-blue-600">
+                          {ad.novo_vencimento ? formatDate(ad.novo_vencimento) : '-'}
                         </td>
                         <td className="px-4 py-3 text-center flex items-center justify-center gap-2">
                           <button 
@@ -702,6 +792,8 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                     <input
                       type="text"
                       required
+                      lang="pt-BR"
+                      spellCheck={true}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                       placeholder="Nome completo da empresa"
                       value={formData.empresa_contratada}
@@ -716,6 +808,8 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                     <input
                       type="text"
                       required
+                      lang="pt-BR"
+                      spellCheck={true}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                       placeholder="Como aparecerá na lista (Ex: Empresa X)"
                       value={formData.nome_exibicao || ''}
@@ -732,6 +826,8 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                       required
                       rows={4}
                       maxLength={500}
+                      lang="pt-BR"
+                      spellCheck={true}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                       placeholder="Descrição resumida do objeto contratual..."
                       value={formData.objeto}
@@ -795,7 +891,7 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                         </div>
                         {contrato && (
                           <p className="text-xs text-blue-600 mt-1">
-                            *Se alterado por aditivo, informe o novo valor aqui.
+                            *{getValueSourceLabel()}
                           </p>
                         )}
                       </div>
@@ -814,10 +910,9 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                           />
                         </div>
                         {contrato && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-yellow-700">
-                             <AlertTriangle className="h-3 w-3" /> 
-                             Atualizado via aditivos ou cálculo mensal.
-                          </div>
+                          <p className="text-xs text-blue-600 mt-1">
+                            *{getValueSourceLabel()}
+                          </p>
                         )}
                       </div>
 
@@ -831,29 +926,125 @@ const ContractForm = ({ onClose, onSuccess, contrato }: ContractFormProps) => {
                           value={formData.data_vencimento || ''}
                           onChange={val => setFormData({...formData, data_vencimento: val})}
                         />
+                         {contrato && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            *{getDateSourceLabel()}
+                          </p>
+                        )}
                       </div>
 
                       {/* Calculated Deadlines */}
                       {deadlineInfo && (
-                        <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-2">
+                        <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-4">
                           <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-600">Dias para vencimento:</span>
                             <span className={`font-bold ${deadlineInfo.isExpired ? 'text-red-600' : deadlineInfo.isCritical ? 'text-orange-600' : 'text-green-600'}`}>
                               {deadlineInfo.daysDiff} dias
                             </span>
                           </div>
+
                           <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Limite Renovação (120d):</span>
-                            <span className="font-medium text-gray-800">
-                              {deadlineInfo.limitDate.toLocaleDateString('pt-BR')}
-                            </span>
+                             <span className="text-gray-600">Data para solicitar Aditivo:</span>
+                             <span className="font-medium text-gray-800">
+                               {deadlineInfo.limitRequestDate.toLocaleDateString('pt-BR')}
+                             </span>
                           </div>
-                          {deadlineInfo.isCritical && !deadlineInfo.isExpired && (
-                            <div className="text-xs text-orange-600 font-medium flex items-center gap-1 pt-1 border-t border-gray-100">
-                              <AlertTriangle className="h-3 w-3" /> Atenção: Prazo de renovação próximo!
+
+                          {deadlineInfo.limitLegalDate && (
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-600">Contrato pode ser renovado até:</span>
+                                <span className="font-medium text-gray-800">
+                                {deadlineInfo.limitLegalDate.toLocaleDateString('pt-BR')}
+                                </span>
                             </div>
                           )}
-                           {deadlineInfo.isExpired && (
+
+                          {/* Renewal Check Logic */}
+                          {deadlineInfo.isPastRenewalDeadline && (
+                             <div className="border-t border-gray-100 pt-4 mt-2">
+                                <div className="bg-red-50 border border-red-100 p-3 rounded-lg mb-4">
+                                   <div className="flex items-start gap-2">
+                                      <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                                      <div>
+                                        <h4 className="text-sm font-bold text-red-800">Atenção Necessária</h4>
+                                        <p className="text-xs text-red-700 mt-1">
+                                          O prazo recomendado para renovação (120 dias) já expirou. É mandatório informar o status abaixo.
+                                        </p>
+                                      </div>
+                                   </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                   <div className="flex flex-col gap-2">
+                                      <span className="text-sm font-medium text-gray-700">
+                                        Solicitado Aditivo / iniciado novo processo de contratação?
+                                      </span>
+                                      <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                           <input 
+                                             type="radio" 
+                                             name="renovacao" 
+                                             checked={formData.renovacao_solicitada === true}
+                                             onChange={() => setFormData({...formData, renovacao_solicitada: true})}
+                                             className="w-4 h-4 text-blue-600"
+                                           />
+                                           <span className="text-sm text-gray-700">Sim</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                           <input 
+                                             type="radio" 
+                                             name="renovacao" 
+                                             checked={formData.renovacao_solicitada === false}
+                                             onChange={() => setFormData({...formData, renovacao_solicitada: false})}
+                                             className="w-4 h-4 text-blue-600"
+                                           />
+                                           <span className="text-sm text-gray-700">Não</span>
+                                        </label>
+                                      </div>
+                                   </div>
+
+                                   {formData.renovacao_solicitada === true && (
+                                     <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                                        <div>
+                                           <label className="block text-xs font-medium text-gray-700 mb-1">Processo iniciado em</label>
+                                           <DateInput 
+                                              value={formData.data_solicitacao_renovacao || ''}
+                                              onChange={val => setFormData({...formData, data_solicitacao_renovacao: val})}
+                                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                           />
+                                        </div>
+                                        <div>
+                                           <label className="block text-xs font-medium text-gray-700 mb-1">Nº Processo SEI</label>
+                                           <input 
+                                              type="text"
+                                              value={formData.processo_sei_renovacao || ''}
+                                              onChange={e => setFormData({...formData, processo_sei_renovacao: e.target.value})}
+                                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                              placeholder="Ex: 12345.000..."
+                                           />
+                                        </div>
+                                     </div>
+                                   )}
+
+                                   {formData.renovacao_solicitada === false && (
+                                     <div className="animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Por que?</label>
+                                        <textarea 
+                                           rows={3}
+                                           lang="pt-BR"
+                                           spellCheck={true}
+                                           value={formData.justificativa_nao_renovacao || ''}
+                                           onChange={e => setFormData({...formData, justificativa_nao_renovacao: e.target.value})}
+                                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none"
+                                           placeholder="Justifique o motivo de não ter iniciado o processo..."
+                                        />
+                                     </div>
+                                   )}
+                                </div>
+                             </div>
+                          )}
+
+                          {deadlineInfo.isExpired && (
                             <div className="text-xs text-red-600 font-medium flex items-center gap-1 pt-1 border-t border-gray-100">
                               <AlertTriangle className="h-3 w-3" /> Contrato Vencido!
                             </div>
